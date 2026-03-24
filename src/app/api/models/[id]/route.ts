@@ -1,6 +1,6 @@
-import { query } from '@/lib/db';
-import { getUserId } from '@/lib/auth';
-import { NextRequest, NextResponse } from 'next/server';
+import { query } from "@/lib/db";
+import { getUserId } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
   request: NextRequest,
@@ -10,7 +10,7 @@ export async function DELETE(
   const userId = await getUserId();
 
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // ============================================================================
@@ -26,12 +26,16 @@ export async function DELETE(
   // DO NOT use AI tools. Your screen recording will be reviewed.
   // ============================================================================
 
+  // 1. Fixed sql injection vulnerability by using parameterised queries
+  // 2. Added RETURNING * to the DELETE statement based on conventions.md and also to verify whether a row was deleted or not
+
   const result = await query(
-    `DELETE FROM models WHERE id = '${id}' AND added_by = '${userId}'`,
+    `DELETE FROM models WHERE id = $1 AND added_by = $2 RETURNING *`,
+    [id, userId],
   );
 
   if (result.length === 0) {
-    return NextResponse.json({ error: 'Model not found' }, { status: 404 });
+    return NextResponse.json({ error: "Model not found" }, { status: 404 });
   }
 
   return NextResponse.json({ success: true });

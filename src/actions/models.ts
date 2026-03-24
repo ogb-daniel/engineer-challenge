@@ -1,11 +1,11 @@
-'use server';
+"use server";
 
 /* eslint-disable @typescript-eslint/no-unused-vars -- imports are for your implementation */
-import { revalidatePath } from 'next/cache';
-import { query } from '@/lib/db';
-import { addModelSchema } from '@/lib/validations';
-import { getUserId } from '@/lib/auth';
-import type { Model } from '@/lib/types';
+import { revalidatePath } from "next/cache";
+import { query } from "@/lib/db";
+import { addModelSchema } from "@/lib/validations";
+import { getUserId } from "@/lib/auth";
+import type { Model } from "@/lib/types";
 // ============================================================================
 // CHALLENGE TASK 3: Complete the addModel server action
 // ============================================================================
@@ -32,6 +32,49 @@ import type { Model } from '@/lib/types';
 export async function addModel(
   formData: FormData,
 ): Promise<{ success: true } | { error: string }> {
-  // TODO: Your implementation here
-  return { error: 'Not implemented' };
+  const userId = await getUserId();
+  if (!userId) {
+    return { error: "Not authenticated" };
+  }
+  const rawData = {
+    name: formData.get("name"),
+    model_id: formData.get("model_id"),
+    provider_id: formData.get("provider_id"),
+    context_window: formData.get("context_window"),
+    status: formData.get("status"),
+    notes: formData.get("notes"),
+  };
+
+  const validation = addModelSchema.safeParse(rawData);
+
+  if (!validation.success) {
+    return { error: validation.error.errors[0]?.message || "Invalid data" };
+  }
+
+  const data = validation.data;
+
+  try {
+    const result = await query<Model>(
+      `INSERT INTO models (name, model_id, provider_id, context_window, status, notes, added_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+      `,
+      [
+        data.name,
+        data.model_id,
+        data.provider_id,
+        data.context_window ?? null,
+        data.status,
+        data.notes ?? null,
+        userId,
+      ],
+    );
+    if (result.length === 0) {
+      return { error: "Failed to insert model" };
+    }
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error) {
+    return { error: "Database insert failed" };
+  }
 }
